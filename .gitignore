@@ -1,0 +1,20 @@
+# Dependencies
+/node_modules
+
+# Next.js
+/.next/
+/out/
+
+# Production
+/build
+
+# Misc
+*.log
+.DS_Store
+
+# Environment
+.env*.local
+.env
+
+# Local card storage (cards live on disk, never in git)
+data/
