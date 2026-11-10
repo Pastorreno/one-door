@@ -175,7 +175,8 @@ export default function OneDoorPanel() {
         vcf: data.vcf,
         publishedUrl: data.publishedUrl || "",
       });
-      setNotice("Card saved. Share the private link, or publish it to get a public link.");
+      setPreview({ html: data.html, qrDataUrl: data.qrDataUrl, pageUrl: data.previewUrl });
+      setNotice("Card saved. Publish it when you are ready to share.");
       void refreshCards();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Card could not be saved.");
@@ -211,8 +212,6 @@ export default function OneDoorPanel() {
     setLinks(values => values.map(l => (l.id === id ? { ...l, ...patch } : l)));
   }
 
-  const shareUrl = saved?.publishedUrl || saved?.previewUrl || preview?.pageUrl || "";
-  const shareQr = saved?.qrDataUrl || preview?.qrDataUrl || "";
 
   return <section className="od-panel" aria-label="One Door" aria-busy={loading}>
     <div className="od-hero">
@@ -277,17 +276,8 @@ export default function OneDoorPanel() {
     {preview && <section className="od-result" aria-label="Card preview">
       <div className="od-section-heading"><div><span className="od-eyebrow">PREVIEW</span><h2>How the card looks</h2></div></div>
       <iframe className="od-preview-frame" title={`${PRODUCT_NAME} card preview`} sandbox="allow-scripts" srcDoc={preview.html} />
-      <div className="od-share">
-        {shareQr && <img src={shareQr} alt="QR code for this card" />}
-        <div>
-          <p><strong>Link</strong></p>
-          <p className="od-url">{shareUrl}</p>
-          <div className="od-actions-row">
-            <button type="button" className="od-refresh" onClick={() => void copyText(shareUrl).then(ok => setNotice(ok ? "Link copied." : "Copy did not work — long-press the link instead."))}>Copy link</button>
-            <button type="button" className="od-refresh" onClick={() => downloadText(`${name.trim() || "one-door-card"}.html`, preview.html, "text/html")}>Download page</button>
-          </div>
-        </div>
-      </div>
+      <p className="od-form-note">Save the card, then publish it to activate its share link and QR code.</p>
+      {saved && <button type="button" className="od-refresh" onClick={() => downloadText(`${saved.slug}.html`, preview.html, "text/html")}>Download page</button>}
       <button className="od-primary" type="button" disabled={busy} onClick={() => void saveCard()}>
         {busy ? "Saving…" : "Save this card"}
       </button>
@@ -303,9 +293,9 @@ export default function OneDoorPanel() {
           <div className="od-actions-row">
             <button type="button" className="od-refresh" onClick={() => void copyText(saved.publishedUrl || saved.previewUrl).then(ok => setNotice(ok ? "Link copied." : "Copy did not work — long-press the link instead."))}>Copy link</button>
             <button type="button" className="od-refresh" onClick={() => downloadText(`${saved.slug}.vcf`, saved.vcf, "text/vcard")}>Download contact (.vcf)</button>
-            {!saved.publishedUrl && <button type="button" className="od-refresh" disabled={busy} onClick={() => void publishCard(saved.id)}>Publish to Vercel</button>}
+            {!saved.publishedUrl && <button type="button" className="od-refresh" disabled={busy} onClick={() => void publishCard(saved.id)}>Publish card</button>}
           </div>
-          {!saved.publishedUrl && <p className="od-form-note">The private link only opens on your own devices. Publish it to get a public link anyone can open.</p>}
+          {!saved.publishedUrl && <p className="od-form-note">Drafts open only in this browser. Publish to let anyone with the link view the card. Keep this browser’s cookies to retain access to your saved cards.</p>}
         </div>
       </div>
     </section>}

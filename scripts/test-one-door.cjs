@@ -33,7 +33,7 @@ function compile(relPath) {
 }
 
 const lib = require(compile("src/lib/one-door.ts"));
-const store = require(compile("src/lib/one-door-store.ts"));
+const store = require(compile("src/lib/one-door-store-local.ts"));
 const publish = require(compile("src/lib/one-door-publish.ts"));
 
 const validProfile = {

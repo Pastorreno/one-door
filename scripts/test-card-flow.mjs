@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3101';
+let cookie = '';
+async function request(path, body, owner = true) {
+ const response = await fetch(base + path, { method: body ? 'POST' : 'GET', headers: { ...(owner && cookie ? { Cookie: cookie } : {}), ...(body ? { 'Content-Type': 'application/json', Origin: base } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+ if (owner && response.headers.get('set-cookie')) cookie = response.headers.get('set-cookie').split(';')[0];
+ return response;
+}
+let response = await request('/api/one-door');
+assert.equal(response.status, 200);
+const profile = {name:'Storage Test', roles:['Tester'], template:'business', links:[], phone:'5551234567', email:'test@example.com', showPhone:false, showEmail:false};
+response = await request('/api/one-door', {action:'preview',profile});
+assert.equal(response.status,200);
+const preview = await response.json();
+assert.ok(!preview.html.includes('tel:5551234567'));
+response = await request('/api/one-door',{action:'create',profile});
+assert.equal(response.status,201);
+const card = await response.json();
+const path = `/api/one-door/cards/${card.id}`;
+assert.equal((await request(path)).status,200);
+assert.equal((await request(path,undefined,false)).status,404);
+assert.equal((await request(`/api/one-door/${card.id}`,undefined,false)).status,404);
+assert.equal((await request('/api/one-door',{action:'publish',id:card.id},false)).status,404);
+response = await request('/api/one-door',undefined,false);
+assert.deepEqual((await response.json()).cards,[]);
+response = await request('/api/one-door',{action:'publish',id:card.id});
+assert.equal(response.status,200);
+assert.equal((await response.json()).publishedUrl, base + path);
+response = await request(path,undefined,false);
+assert.equal(response.status,200);
+const html = await response.text();
+assert.ok(html.includes('Storage Test'));
+assert.ok(!html.includes('tel:5551234567'));
+assert.ok(!html.includes('mailto:test@example.com'));
+// Creating another card cannot overwrite the published card, even with its ID supplied.
+response = await request('/api/one-door',{action:'create',profile:{...profile,name:'Second Test'},provisionalId:card.id});
+assert.equal(response.status,201);
+assert.notEqual((await response.json()).id,card.id);
+assert.ok((await (await request(path,undefined,false)).text()).includes('Storage Test'));
+response = await request(`/api/one-door/${card.id}?download=vcf`);
+assert.equal(response.status,200);
+assert.ok(!(await response.text()).includes('TEL;'));
+console.log('PASS: preview, save, draft isolation, publish ownership, public link, second card preservation, contact consent.');
