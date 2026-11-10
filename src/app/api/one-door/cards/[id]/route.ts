@@ -1,3 +1,4 @@
+import { session } from "@/lib/one-door-session";
 import { NextRequest, NextResponse } from "next/server";
 import { getCardHtml, validCardId } from "@/lib/one-door-store";
 
@@ -15,7 +16,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   if (!validCardId(id)) {
     return new NextResponse("Card not found.", { status: 404 });
   }
-  const html = getCardHtml(id);
+  const html = await getCardHtml(id, session(_req).owner);
   if (!html) {
     return new NextResponse("Card not found.", { status: 404 });
   }

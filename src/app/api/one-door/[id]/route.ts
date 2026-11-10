@@ -1,3 +1,4 @@
+import { session } from "@/lib/one-door-session";
 import { NextRequest, NextResponse } from "next/server";
 import { allowedOrigin } from "@/lib/request-origin";
 import { buildVCard } from "@/lib/one-door";
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   if (!validCardId(id)) {
     return NextResponse.json({ error: "Unknown card." }, { status: 400, headers });
   }
-  const card = getCard(id);
+  const card = await getCard(id, session(req).owner);
   if (!card) {
     return NextResponse.json({ error: "Card not found." }, { status: 404, headers });
   }

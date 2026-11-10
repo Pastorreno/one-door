@@ -175,7 +175,7 @@ export default function OneDoorPanel() {
         vcf: data.vcf,
         publishedUrl: data.publishedUrl || "",
       });
-      setNotice("Card saved. Share the private link, or publish it to get a public link.");
+      setNotice("Card saved on this browser. Publish it when you are ready to share.");
       void refreshCards();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Card could not be saved.");
@@ -303,9 +303,9 @@ export default function OneDoorPanel() {
           <div className="od-actions-row">
             <button type="button" className="od-refresh" onClick={() => void copyText(saved.publishedUrl || saved.previewUrl).then(ok => setNotice(ok ? "Link copied." : "Copy did not work — long-press the link instead."))}>Copy link</button>
             <button type="button" className="od-refresh" onClick={() => downloadText(`${saved.slug}.vcf`, saved.vcf, "text/vcard")}>Download contact (.vcf)</button>
-            {!saved.publishedUrl && <button type="button" className="od-refresh" disabled={busy} onClick={() => void publishCard(saved.id)}>Publish to Vercel</button>}
+            {!saved.publishedUrl && <button type="button" className="od-refresh" disabled={busy} onClick={() => void publishCard(saved.id)}>Publish card</button>}
           </div>
-          {!saved.publishedUrl && <p className="od-form-note">The private link only opens on your own devices. Publish it to get a public link anyone can open.</p>}
+          {!saved.publishedUrl && <p className="od-form-note">Drafts open only in this browser. Publish to let anyone with the link view the card. Keep this browser’s cookies to retain access to your saved cards.</p>}
         </div>
       </div>
     </section>}

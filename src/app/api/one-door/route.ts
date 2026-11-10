@@ -9,21 +9,8 @@ import {
   validateProfile,
   type OneDoorProfile,
 } from "@/lib/one-door";
-import {
-  createCard,
-  getCard,
-  listCards,
-  updateCardHtml,
-  updateCardMeta,
-  validCardId,
-} from "@/lib/one-door-store";
-import {
-  cardPublicUrl,
-  deployToVercel,
-  vercelProjectName,
-  vercelToken,
-  verifyPublicUrl,
-} from "@/lib/one-door-publish";
+import { createCard, getCard, listCards, setCardPage, validCardId } from "@/lib/one-door-store";
+import { session, withSession } from "@/lib/one-door-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +22,7 @@ const headers = {
 
 function appOrigin(req: NextRequest): string {
   const host = req.headers.get("host") || "";
-  return host ? `https://${host}` : "";
+  return host ? `${process.env.NODE_ENV === "development" ? "http" : "https"}://${host}` : "";
 }
 
 function cardAppUrl(req: NextRequest, id: string): string {
@@ -56,7 +43,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403, headers });
   }
   try {
-    return NextResponse.json({ cards: listCards() }, { headers });
+    const { owner, token } = session(req);
+    return withSession(NextResponse.json({ cards: await listCards(owner) }, { headers }), token);
   } catch {
     return NextResponse.json({ error: "Saved cards are temporarily unavailable." }, { status: 503, headers });
   }
@@ -86,54 +74,17 @@ export async function POST(req: NextRequest) {
   if (action === "publish") {
     const id = typeof value.id === "string" ? value.id : "";
     if (!validCardId(id)) return NextResponse.json({ error: "Unknown card." }, { status: 400, headers });
-    const card = getCard(id);
-    if (!card) return NextResponse.json({ error: "Card not found." }, { status: 404, headers });
-    const token = vercelToken();
-    if (!token) {
-      return NextResponse.json(
-        {
-          error:
-            "Vercel publishing is not set up yet. Add ONE_DOOR_VERCEL_TOKEN to the server environment (.env.local), then try again. The card itself is saved and the private link still works.",
-        },
-        { status: 503, headers },
-      );
-    }
-    const project = vercelProjectName();
-    const intendedUrl = cardPublicUrl(project, card.slug);
+    const { owner } = session(req);
     try {
-      // First deploy: the QR on the page encodes the stable public URL.
-      const firstQr = await qrFor(intendedUrl);
-      const firstHtml = renderCardHtml(card.profile, { pageUrl: intendedUrl, qrDataUrl: firstQr });
-      const first = await deployToVercel({ token, project, slug: card.slug, html: firstHtml });
-      if (!first.ok) {
-        return NextResponse.json({ error: `Vercel deploy failed: ${first.error}` }, { status: 502, headers });
-      }
-      if (await verifyPublicUrl(intendedUrl)) {
-        updateCardHtml(id, firstHtml);
-        const meta = updateCardMeta(id, { publishedUrl: intendedUrl });
-        return NextResponse.json(
-          { publishedUrl: intendedUrl, deploymentUrl: first.deploymentUrl, qrDataUrl: firstQr, card: meta },
-          { headers },
-        );
-      }
-      // The project alias is not live yet: re-render with the deployment URL and deploy once more.
-      const fallbackQr = await qrFor(first.deploymentUrl);
-      const fallbackHtml = renderCardHtml(card.profile, { pageUrl: first.deploymentUrl, qrDataUrl: fallbackQr });
-      const second = await deployToVercel({ token, project, slug: card.slug, html: fallbackHtml });
-      if (!second.ok) {
-        return NextResponse.json(
-          { error: `Vercel deploy failed on retry: ${second.error}`, deploymentUrl: first.deploymentUrl },
-          { status: 502, headers },
-        );
-      }
-      updateCardHtml(id, fallbackHtml);
-      const meta = updateCardMeta(id, { publishedUrl: first.deploymentUrl });
-      return NextResponse.json(
-        { publishedUrl: first.deploymentUrl, deploymentUrl: first.deploymentUrl, qrDataUrl: fallbackQr, card: meta },
-        { headers },
-      );
+      const card = await getCard(id, owner);
+      if (!card) return NextResponse.json({ error: "Card not found." }, { status: 404, headers });
+      const publishedUrl = cardAppUrl(req, id);
+      const qrDataUrl = await qrFor(publishedUrl);
+      const html = renderCardHtml(card.profile, { pageUrl: publishedUrl, qrDataUrl });
+      await setCardPage(id, owner, html, publishedUrl);
+      return NextResponse.json({ publishedUrl, qrDataUrl }, { headers });
     } catch {
-      return NextResponse.json({ error: "Publishing failed. The saved card is unaffected." }, { status: 503, headers });
+      return NextResponse.json({ error: "Publishing failed. Please try again." }, { status: 503, headers });
     }
   }
 
@@ -157,29 +108,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ provisionalId, pageUrl, qrDataUrl, html, vcf: buildVCard(profile) }, { headers });
     }
 
-    const pageUrl = cardAppUrl(req, provisionalId);
+    const { owner, token } = session(req);
+    const card = await createCard(profile, "", owner);
+    const pageUrl = cardAppUrl(req, card.id);
     const qrDataUrl = await qrFor(pageUrl);
-    const html = renderCardHtml(profile, { pageUrl, qrDataUrl });
-    const card = createCard(profile, html, provisionalId);
-    return NextResponse.json(
-      {
-        id: card.id,
-        slug: card.slug,
-        previewUrl: pageUrl,
-        qrDataUrl,
-        vcf: buildVCard(profile),
-        card: {
-          id: card.id,
-          slug: card.slug,
-          name: card.name,
-          template: card.template,
-          createdAt: card.createdAt,
-          updatedAt: card.updatedAt,
-          publishedUrl: card.publishedUrl,
-        },
-      },
-      { status: 201, headers },
-    );
+    await setCardPage(card.id, owner, renderCardHtml(profile, { pageUrl, qrDataUrl }));
+    return withSession(NextResponse.json({
+      id: card.id, slug: card.slug, previewUrl: pageUrl, qrDataUrl, vcf: buildVCard(profile),
+    }, { status: 201, headers }), token);
+
   } catch {
     return NextResponse.json({ error: "The card could not be built." }, { status: 503, headers });
   }
