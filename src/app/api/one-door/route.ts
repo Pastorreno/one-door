@@ -112,9 +112,10 @@ export async function POST(req: NextRequest) {
     const card = await createCard(profile, "", owner);
     const pageUrl = cardAppUrl(req, card.id);
     const qrDataUrl = await qrFor(pageUrl);
-    await setCardPage(card.id, owner, renderCardHtml(profile, { pageUrl, qrDataUrl }));
+    const html = renderCardHtml(profile, { pageUrl, qrDataUrl });
+    await setCardPage(card.id, owner, html);
     return withSession(NextResponse.json({
-      id: card.id, slug: card.slug, previewUrl: pageUrl, qrDataUrl, vcf: buildVCard(profile),
+      id: card.id, slug: card.slug, previewUrl: pageUrl, qrDataUrl, html, vcf: buildVCard(profile),
     }, { status: 201, headers }), token);
 
   } catch {

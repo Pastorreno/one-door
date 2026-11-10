@@ -1,53 +1,45 @@
-# Mac mini storage repair — pending deployment
+# One Door storage repair
 
-One Door is a commercial digital profile/EPK service for people, nonprofits,
-pastors and churches. Each customer needs their own profile and share link.
-Church visitor forms may integrate with the existing visitor follow-up system
-only after explicit visitor consent and a verified integration contract.
+## Scope
+Keep the existing digital business card / link-hub code and design. Finish saving
+and sharing. No n8n, visitor follow-up, subscriptions, customer account system, or
+new product features are included in this repair.
 
 ## Architecture
+Source remains Pastorreno/one-door on GitHub. Vercel renders the app. The Mac mini
+stores records and card HTML under ~/storage/one-door. The dedicated storage
+server is scripts/mac-storage.mjs, bound only to 127.0.0.1:8794 by default.
+Its API requires a strong ONE_DOOR_STORAGE_TOKEN for every request. Writes are
+atomic and files have mode 0600. No credentials are stored in GitHub.
+Vercel needs ONE_DOOR_STORAGE_URL (HTTPS URL ending in /) and the matching secret.
+No Blob storage or per-card Vercel deployments are used.
 
-- Source: Pastorreno/one-door on GitHub.
-- Frontend and rendering: existing one-door Vercel project.
-- Customer records and rendered cards: Mac mini, ~/storage/one-door.
-- Storage server: scripts/mac-storage.mjs, Node, loopback port 8794 by default.
-- Vercel variables: ONE_DOOR_STORAGE_URL (dedicated HTTPS endpoint ending in /)
-  and ONE_DOOR_STORAGE_TOKEN (same strong secret as the Mac storage service).
-- No Vercel Blob storage. No Vercel API token or deployment per customer card.
+## Publishing and privacy
+Each card keeps its own stable app URL. Only Publish makes its rendered HTML
+public. Draft listing, raw profiles, and publishing require the creator browser's
+HTTP-only owner cookie. Keep that cookie to retain management access. This is a
+simple card maker, not an account/subscription service. Contact fields appear in
+HTML and vCards only when their visibility toggles are enabled.
 
-## Current state and remaining setup
+Preview links are not offered for sharing before save. Saved page downloads and
+QR codes reference the saved card's real ID, not the preview's provisional ID.
 
-Repair is not live. Local build and original logic tests pass. API flow tests
-cover draft isolation, owner-only publishing, public card reads, preserved links
-when another card is created, and contact consent using the local disk adapter.
-Remote Mac storage and the deployed flow still require verification.
+## Verified
+TypeScript, production build, original unit tests and local API tests pass.
+The full API flow also passes using the separate HTTP storage server, including
+unauthorized storage rejection and persistence after restarting that server.
+Live Vercel-to-Mac testing remains pending network setup.
 
-Before activation: back up relevant configuration, select an unused loopback port,
-register the isolated service, and configure a dedicated authenticated HTTPS tunnel
-route. Do not attach a customer-facing storage endpoint to Melvin's private tool
-API. Set matching secrets securely without printing them. Test unauthorized calls,
-save/reload, publish, contact download, and persistence across service restart.
-Keep existing Mac services and customer data intact.
-
-Draft ownership currently uses a secure HTTP-only browser cookie. This is an
-interim testing mechanism, not customer account management. Customer accounts,
-recovery and cross-device access must be implemented before a paid launch.
-Published HTML excludes contact fields unless enabled by the customer. The
-private profile JSON is never accessible through the public card route.
-
-Vercel production protection also needs a scoped configuration allowing intended
-public cards while customer management remains authenticated. Do not remove
-protection from the prototype before customer authentication is ready.
-
-## Tests
-
-npm run build
-node scripts/test-one-door.cjs
-# Start npm run dev -- --hostname 127.0.0.1 --port 3101 first:
-node scripts/test-card-flow.mjs
+## Pending activation
+The Mac mini is online; port 8794 was unused. Automatic approval review rejected
+creating a new Cloudflare tunnel without specific approval for that connection.
+Proposed dedicated endpoint: one-door-storage.macminhub.com, protected by the
+storage bearer secret. No existing Melvin tunnel/service should be altered.
+After approval, create a separate tunnel and service, set encrypted Vercel
+variables, run health checks, deploy and test the real flow. Configure production
+access so published cards can be opened outside Vercel while retaining preview
+protection and application draft ownership checks.
 
 ## Rollback
-
-Keep this repair on its branch until infrastructure and customer authentication
-are ready. Reverting the app does not delete Mac mini records. Preserve the
-storage directory and backups across all deploys.
+Roll back Vercel to the previous deployment if needed. Stop only the new isolated
+storage service and tunnel; retain Mac records and backups. Do not delete data.

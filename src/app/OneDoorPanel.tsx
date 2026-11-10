@@ -175,7 +175,8 @@ export default function OneDoorPanel() {
         vcf: data.vcf,
         publishedUrl: data.publishedUrl || "",
       });
-      setNotice("Card saved on this browser. Publish it when you are ready to share.");
+      setPreview({ html: data.html, qrDataUrl: data.qrDataUrl, pageUrl: data.previewUrl });
+      setNotice("Card saved. Publish it when you are ready to share.");
       void refreshCards();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Card could not be saved.");
@@ -211,8 +212,6 @@ export default function OneDoorPanel() {
     setLinks(values => values.map(l => (l.id === id ? { ...l, ...patch } : l)));
   }
 
-  const shareUrl = saved?.publishedUrl || saved?.previewUrl || preview?.pageUrl || "";
-  const shareQr = saved?.qrDataUrl || preview?.qrDataUrl || "";
 
   return <section className="od-panel" aria-label="One Door" aria-busy={loading}>
     <div className="od-hero">
@@ -277,17 +276,8 @@ export default function OneDoorPanel() {
     {preview && <section className="od-result" aria-label="Card preview">
       <div className="od-section-heading"><div><span className="od-eyebrow">PREVIEW</span><h2>How the card looks</h2></div></div>
       <iframe className="od-preview-frame" title={`${PRODUCT_NAME} card preview`} sandbox="allow-scripts" srcDoc={preview.html} />
-      <div className="od-share">
-        {shareQr && <img src={shareQr} alt="QR code for this card" />}
-        <div>
-          <p><strong>Link</strong></p>
-          <p className="od-url">{shareUrl}</p>
-          <div className="od-actions-row">
-            <button type="button" className="od-refresh" onClick={() => void copyText(shareUrl).then(ok => setNotice(ok ? "Link copied." : "Copy did not work — long-press the link instead."))}>Copy link</button>
-            <button type="button" className="od-refresh" onClick={() => downloadText(`${name.trim() || "one-door-card"}.html`, preview.html, "text/html")}>Download page</button>
-          </div>
-        </div>
-      </div>
+      <p className="od-form-note">Save the card, then publish it to activate its share link and QR code.</p>
+      {saved && <button type="button" className="od-refresh" onClick={() => downloadText(`${saved.slug}.html`, preview.html, "text/html")}>Download page</button>}
       <button className="od-primary" type="button" disabled={busy} onClick={() => void saveCard()}>
         {busy ? "Saving…" : "Save this card"}
       </button>
