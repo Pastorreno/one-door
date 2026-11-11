@@ -42,6 +42,8 @@ export type OneDoorProfile = {
   bio?: string;
   /** data:image/jpeg|png|webp;base64,... — never a remote URL, never a secret. */
   photoDataUrl?: string;
+  /** Brand mark or monogram shown at the top of the card. Same rules as the photo. */
+  logoDataUrl?: string;
   phone?: string;
   email?: string;
   /** Phone and email are published ONLY when the matching flag is true.
@@ -69,7 +71,7 @@ export type OneDoorCardRecord = OneDoorCardMeta & {
 
 export const ONE_DOOR_LIMITS = {
   nameMax: 80,
-  rolesMax: 4,
+  rolesMax: 5,
   roleMax: 40,
   taglineMax: 160,
   bioMax: 280,
@@ -78,6 +80,7 @@ export const ONE_DOOR_LIMITS = {
   phoneMax: 30,
   emailMax: 120,
   photoMaxBytes: 2_000_000,
+  logoMaxBytes: 2_000_000,
   requestMaxBytes: 3_500_000,
 } as const;
 
@@ -228,7 +231,7 @@ export function validateProfile(input: unknown): OneDoorValidation {
     ? rawRoles.filter((r): r is string => typeof r === "string").map(r => r.trim()).filter(Boolean)
     : [];
   if (roles.length < 1) errors.push("Add at least one role (what this person does).");
-  if (roles.length > ONE_DOOR_LIMITS.rolesMax) errors.push("Keep it to four roles at most.");
+  if (roles.length > ONE_DOOR_LIMITS.rolesMax) errors.push("Keep it to five roles at most.");
   if (roles.some(r => r.length > ONE_DOOR_LIMITS.roleMax)) errors.push("Each role must be short.");
 
   const tagline = asString("tagline");
@@ -294,6 +297,19 @@ export function validateProfile(input: unknown): OneDoorValidation {
     }
   }
 
+  let logoDataUrl: string | undefined;
+  const rawLogo = value.logoDataUrl;
+  if (typeof rawLogo === "string" && rawLogo) {
+    const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(rawLogo.trim());
+    if (!match) {
+      errors.push("Logo must be a JPEG, PNG, or WebP image.");
+    } else {
+      const bytes = Math.floor((match[2].length * 3) / 4);
+      if (bytes > ONE_DOOR_LIMITS.logoMaxBytes) errors.push("Logo is too large. Keep it under 2 MB.");
+      else logoDataUrl = rawLogo.trim();
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
@@ -303,6 +319,7 @@ export function validateProfile(input: unknown): OneDoorValidation {
       tagline: tagline || undefined,
       bio: bio || undefined,
       photoDataUrl,
+      logoDataUrl,
       phone: phone || undefined,
       email: email || undefined,
       showPhone,
@@ -333,6 +350,44 @@ export function buildVCard(profile: OneDoorProfile): string {
 /* card page rendering                                                 */
 /* ------------------------------------------------------------------ */
 
+/** Show a link address the way the card does: host plus path, no scheme. */
+function displayUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    return url.host + (url.pathname === "/" ? "" : url.pathname);
+  } catch {
+    return value.replace(/^https?:\/\//, "");
+  }
+}
+
+const ICON_GLOBE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.6 3.9 5.7 3.9 9s-1.4 6.4-3.9 9c-2.5-2.6-3.9-5.7-3.9-9S9.5 5.6 12 3z"/></svg>';
+const ICON_PHONE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+const ICON_MESSAGE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+const ICON_MAIL =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>';
+const ICON_DOWNLOAD =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>';
+const ICON_QR =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM21 14v.01M14 21v.01M21 21v.01"/></svg>';
+const ICON_SHARE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/></svg>';
+
+/**
+ * Card page rendering — the light card design: white card on a soft grey
+ * page, red accent bar across the top, brand mark above a photo-and-name
+ * header, a black Save Contact button, Call / Text / Email actions,
+ * contact lines, link rows, and a QR / Share footer. One layout for all
+ * four templates; only the link order and section title change.
+ *
+ * Title rule: with three or more roles, the first two are the bold title
+ * block (the job, then where — e.g. Chief Operating Officer, Stepping
+ * Stone Empowerment Center) and the rest show as a grey roles line.
+ * With one or two roles, the first is the title and the second, if any,
+ * is the roles line.
+ */
 export function renderCardHtml(
   profile: OneDoorProfile,
   opts: { pageUrl: string; qrDataUrl: string },
@@ -346,23 +401,35 @@ export function renderCardHtml(
   const vcf = buildVCard(profile);
   const fileName = `${slugifyName(profile.name)}.vcf`;
 
+  const titleLines = profile.roles.length >= 3 ? profile.roles.slice(0, 2) : profile.roles.slice(0, 1);
+  const restRoles = profile.roles.length >= 3 ? profile.roles.slice(2) : profile.roles.slice(1);
+
+  const logoBlock = profile.logoDataUrl
+    ? `<img class="od-logo" src="${escapeAttr(profile.logoDataUrl)}" alt="Logo">`
+    : "";
+
   const photoBlock = profile.photoDataUrl
     ? `<img class="od-photo" src="${escapeAttr(profile.photoDataUrl)}" alt="Photo of ${escapeAttr(profile.name)}">`
-    : `<div class="od-monogram" role="img" aria-label="Photo placeholder">${escapeHtml(initialsFor(profile.name))}</div><p class="od-photo-note">Photo placeholder</p>`;
+    : `<div class="od-monogram" role="img" aria-label="Photo placeholder">${escapeHtml(initialsFor(profile.name))}</div>`;
 
-  const contactButtons: string[] = [];
+  const actionButtons: string[] = [];
   if (profile.showPhone && profile.phone) {
-    contactButtons.push(`<a class="od-btn od-btn-call" href="tel:${escapeAttr(profile.phone.replace(/[\s()\-]/g, ""))}">Call</a>`);
+    const tel = profile.phone.replace(/[\s()\-]/g, "");
+    actionButtons.push(`<a class="od-act" href="tel:${escapeAttr(tel)}">${ICON_PHONE}<span>Call</span></a>`);
+    actionButtons.push(`<a class="od-act" href="sms:${escapeAttr(tel)}">${ICON_MESSAGE}<span>Text</span></a>`);
   }
   if (profile.showEmail && profile.email) {
-    contactButtons.push(`<a class="od-btn od-btn-email" href="mailto:${escapeAttr(profile.email)}">Email</a>`);
+    actionButtons.push(`<a class="od-act" href="mailto:${escapeAttr(profile.email)}">${ICON_MAIL}<span>Email</span></a>`);
   }
-  contactButtons.push(`<button class="od-btn od-btn-save" type="button" data-save-contact>Save to Contacts</button>`);
 
-  const linkButtons = orderedLinks
+  const contactLines: string[] = [];
+  if (profile.showPhone && profile.phone) contactLines.push(`<p>${escapeHtml(profile.phone)}</p>`);
+  if (profile.showEmail && profile.email) contactLines.push(`<p>${escapeHtml(profile.email)}</p>`);
+
+  const linkRows = orderedLinks
     .map(
       l =>
-        `<a class="od-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer"><span>${escapeHtml(l.label)}</span><small>${escapeHtml(ONE_DOOR_KIND_LABELS[l.kind])}</small></a>`,
+        `<a class="od-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${ICON_GLOBE}<span class="od-link-text"><strong>${escapeHtml(l.label)}</strong><small>${escapeHtml(displayUrl(l.url))}</small></span></a>`,
     )
     .join("\n");
 
@@ -375,57 +442,81 @@ export function renderCardHtml(
 <meta name="description" content="${escapeAttr([profile.name, ...profile.roles].join(" · "))}">
 <style>
 *{box-sizing:border-box;margin:0}
-body{background:#0b0c0f;color:#f1f2f4;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;padding:28px 16px 48px}
+body{background:#eceef0;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;padding:26px 14px 48px}
 .od-wrap{max-width:430px;margin:0 auto}
-.od-card{background:linear-gradient(160deg,#17150f,#0b0c0f 60%);border:1px solid #554722;border-radius:24px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.5)}
-.od-face{padding:30px 24px 26px;text-align:center}
-.od-photo{width:132px;height:132px;object-fit:cover;border-radius:50%;border:2px solid #d7b35d;display:block;margin:0 auto 18px}
-.od-monogram{width:132px;height:132px;border-radius:50%;border:2px solid #d7b35d;display:grid;place-items:center;margin:0 auto 10px;font-family:Georgia,serif;font-size:46px;color:#d7b35d;background:linear-gradient(145deg,#191711,#0e0f12)}
-.od-photo-note{font-size:11px;color:#858b98;margin-bottom:8px}
-.od-face h1{font-size:27px;letter-spacing:-.02em;line-height:1.15}
-.od-roles{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin:14px 0 6px}
-.od-roles span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#d7b35d;border:1px solid #554722;border-radius:999px;padding:6px 11px}
-.od-tagline{font-family:Georgia,serif;font-style:italic;font-size:15px;line-height:1.5;color:#c7cbd3;margin:12px auto 0;max-width:330px}
-.od-actions{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:22px}
-.od-btn{min-height:46px;padding:12px 18px;border-radius:12px;font:inherit;font-size:14px;font-weight:650;cursor:pointer;text-decoration:none;display:inline-block}
-.od-btn-call{background:#d7b35d;color:#111;border:1px solid #d7b35d}
-.od-btn-email{background:transparent;color:#f1f2f4;border:1px solid #554722}
-.od-btn-save{background:transparent;color:#d7b35d;border:1px solid #554722}
-.od-btn-flip{background:none;border:0;color:#858b98;font:inherit;font-size:12px;cursor:pointer;margin-top:16px;text-decoration:underline}
-.od-back{display:none;padding:30px 24px 26px}
-.od-card.flipped .od-face{display:none}
-.od-card.flipped .od-back{display:block}
-.od-back h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#d7b35d;margin-bottom:12px}
-.od-bio{font-size:14px;line-height:1.65;color:#c7cbd3;margin-bottom:20px}
-.od-links{display:grid;gap:9px}
-.od-link{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 15px;border:1px solid #2b2f3a;border-radius:13px;background:#14161c;color:#f1f2f4;text-decoration:none;font-size:15px}
-.od-link small{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#858b98}
-.od-qr{margin-top:22px;text-align:center}
-.od-qr img{width:150px;height:150px;border-radius:12px;border:1px solid #554722;background:#fff;padding:6px}
-.od-qr p{font-size:11px;color:#858b98;margin-top:9px;line-height:1.5}
-.od-foot{text-align:center;margin-top:20px;font-size:11px;color:#5f6571;line-height:1.6}
-.od-foot a{color:#d7b35d}
+.od-card{background:#fff;border-radius:26px;overflow:hidden;box-shadow:0 16px 44px rgba(17,24,39,.12)}
+.od-topbar{height:10px;background:#e11d2e}
+.od-inner{padding:26px 26px 24px}
+.od-logo{display:block;max-height:58px;max-width:190px;width:auto;margin-bottom:20px}
+.od-head{display:grid;grid-template-columns:126px 1fr;gap:20px;align-items:start}
+.od-photo{width:126px;height:168px;object-fit:cover;border-radius:16px;display:block}
+.od-monogram{width:126px;height:168px;border-radius:16px;background:#eef0f2;display:grid;place-items:center;font-family:Georgia,serif;font-size:42px;color:#9aa0a6}
+.od-photo-note{font-size:11px;color:#9aa0a6;margin-top:8px}
+.od-face h1{font-size:26px;font-weight:750;letter-spacing:-.02em;line-height:1.18;color:#111827}
+.od-title{font-size:17px;font-weight:700;line-height:1.4;color:#111827;margin-top:12px}
+.od-rule{width:52px;height:4px;background:#e11d2e;border-radius:2px;margin:16px 0 14px}
+.od-roles{font-size:15px;line-height:1.55;color:#6b7280}
+.od-tagline{font-family:Georgia,serif;font-style:italic;font-size:15px;line-height:1.55;color:#6b7280;margin-top:12px}
+.od-save{width:100%;margin-top:26px;min-height:56px;border:0;border-radius:14px;background:#111827;color:#fff;font:inherit;font-size:17px;font-weight:650;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px}
+.od-save svg{width:20px;height:20px}
+.od-actions{display:flex;gap:10px;margin-top:12px}
+.od-act{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;border:1px solid #d4d7db;border-radius:14px;background:#fff;color:#111827;text-decoration:none;font-size:15px;font-weight:600}
+.od-act svg{width:19px;height:19px}
+.od-contact{text-align:center;color:#6b7280;font-size:16px;line-height:1.9;margin-top:18px}
+.od-bio{font-size:15px;line-height:1.65;color:#4b5563;text-align:center;margin-top:16px}
+.od-div{border:0;border-top:1px solid #e5e7eb;margin:24px 0 6px}
+.od-links{display:grid}
+.od-link{display:flex;gap:14px;align-items:center;padding:17px 2px;border-bottom:1px solid #eef0f2;text-decoration:none;color:#111827}
+.od-link:last-child{border-bottom:0}
+.od-link>svg{width:22px;height:22px;flex:none}
+.od-link-text{display:grid;gap:2px}
+.od-link-text strong{font-size:16px;font-weight:650}
+.od-link-text small{font-size:14px;color:#6b7280}
+.od-qr{display:none;margin-top:20px;text-align:center}
+.od-qr.open{display:block}
+.od-qr img{width:150px;height:150px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;padding:6px}
+.od-qr p{font-size:12px;color:#6b7280;margin-top:10px;line-height:1.5}
+.od-foot-row{display:flex;justify-content:center;gap:34px;margin-top:22px}
+.od-foot-btn{background:none;border:0;cursor:pointer;font:inherit;font-size:15px;font-weight:600;color:#111827;display:flex;align-items:center;gap:9px;padding:0}
+.od-foot-btn svg{width:20px;height:20px}
+.od-foot{text-align:center;margin-top:22px;font-size:11px;color:#9aa0a6;line-height:1.6}
+.od-foot a{color:#6b7280}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 </style>
 </head>
 <body>
 <main class="od-wrap">
-<article class="od-card" id="moCard">
-  <section class="od-face">
-    ${photoBlock}
-    <h1>${escapeHtml(profile.name)}</h1>
-    <div class="od-roles">${profile.roles.map(r => `<span>${escapeHtml(r)}</span>`).join("")}</div>
-    ${profile.tagline ? `<p class="od-tagline">&ldquo;${escapeHtml(profile.tagline)}&rdquo;</p>` : ""}
-    <div class="od-actions">${contactButtons.join("")}</div>
-    <button class="od-btn-flip" type="button" data-flip>See links &amp; QR code &#8594;</button>
-  </section>
-  <section class="od-back">
-    <h2>${escapeHtml(meta.linkSectionTitle)}</h2>
+<article class="od-card">
+  <div class="od-topbar"></div>
+  <div class="od-inner">
+    ${logoBlock}
+    <div class="od-head">
+      <div>
+        ${photoBlock}
+        ${profile.photoDataUrl ? "" : `<p class="od-photo-note">Photo placeholder</p>`}
+      </div>
+      <div class="od-face">
+        <h1>${escapeHtml(profile.name)}</h1>
+        ${titleLines.length > 0 ? `<p class="od-title">${titleLines.map(r => escapeHtml(r)).join("<br>")}</p>` : ""}
+        <div class="od-rule"></div>
+        ${restRoles.length > 0 ? `<p class="od-roles">${restRoles.map(r => escapeHtml(r)).join(" &middot; ")}</p>` : ""}
+        ${profile.tagline ? `<p class="od-tagline">&ldquo;${escapeHtml(profile.tagline)}&rdquo;</p>` : ""}
+      </div>
+    </div>
+    <button class="od-save" type="button" data-save-contact>${ICON_DOWNLOAD}<span>Save Contact</span></button>
+    ${actionButtons.length > 0 ? `<div class="od-actions">${actionButtons.join("")}</div>` : ""}
+    ${contactLines.length > 0 ? `<div class="od-contact">${contactLines.join("")}</div>` : ""}
     ${profile.bio ? `<p class="od-bio">${escapeHtml(profile.bio)}</p>` : ""}
-    <div class="od-links">${linkButtons || `<p class="od-bio">No links added yet.</p>`}</div>
-    <div class="od-qr"><img src="${escapeAttr(opts.qrDataUrl)}" alt="QR code for this page"><p>Scan to open this page.<br>${escapeHtml(opts.pageUrl)}</p></div>
-    <div class="od-actions"><button class="od-btn od-btn-save" type="button" data-save-contact>Save to Contacts</button></div>
-    <button class="od-btn-flip" type="button" data-flip>&#8592; Back to card</button>
-  </section>
+    <hr class="od-div">
+    <h2 class="visually-hidden">${escapeHtml(meta.linkSectionTitle)}</h2>
+    <div class="od-links">${linkRows || `<p class="od-bio">No links added yet.</p>`}</div>
+    <div class="od-qr" id="odQr"><img src="${escapeAttr(opts.qrDataUrl)}" alt="QR code for this page"><p>Scan to open this page.<br>${escapeHtml(opts.pageUrl)}</p></div>
+    <hr class="od-div">
+    <div class="od-foot-row">
+      <button class="od-foot-btn" type="button" data-qr-toggle>${ICON_QR}<span>Show QR Code</span></button>
+      <button class="od-foot-btn" type="button" data-share>${ICON_SHARE}<span>Share Card</span></button>
+    </div>
+  </div>
 </article>
 <p class="od-foot">Made with ${PRODUCT_NAME}.<br><a href="${escapeAttr(opts.pageUrl)}">${escapeHtml(opts.pageUrl)}</a></p>
 </main>
@@ -433,6 +524,8 @@ body{background:#0b0c0f;color:#f1f2f4;font-family:-apple-system,BlinkMacSystemFo
 (function(){
   var vcf = ${jsonForScript(vcf)};
   var fileName = ${jsonForScript(fileName)};
+  var pageUrl = ${jsonForScript(opts.pageUrl)};
+  var pageTitle = ${jsonForScript(profile.name + " — " + PRODUCT_NAME)};
   function saveContact(){
     var blob = new Blob([vcf], { type: "text/vcard" });
     var a = document.createElement("a");
@@ -442,12 +535,32 @@ body{background:#0b0c0f;color:#f1f2f4;font-family:-apple-system,BlinkMacSystemFo
     setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
   }
   document.querySelectorAll("[data-save-contact]").forEach(function(b){ b.addEventListener("click", saveContact); });
-  document.querySelectorAll("[data-flip]").forEach(function(b){
-    b.addEventListener("click", function(){ document.getElementById("moCard").classList.toggle("flipped"); });
+  var qr = document.getElementById("odQr");
+  var qrBtn = document.querySelector("[data-qr-toggle]");
+  if (qrBtn && qr) qrBtn.addEventListener("click", function(){
+    var open = qr.classList.toggle("open");
+    var label = qrBtn.querySelector("span");
+    if (label) label.textContent = open ? "Hide QR Code" : "Show QR Code";
+  });
+  var shareBtn = document.querySelector("[data-share]");
+  if (shareBtn) shareBtn.addEventListener("click", async function(){
+    var label = shareBtn.querySelector("span");
+    try {
+      if (navigator.share) { await navigator.share({ title: pageTitle, url: pageUrl }); return; }
+      throw new Error("no share");
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+      try {
+        await navigator.clipboard.writeText(pageUrl);
+        if (label) {
+          label.textContent = "Link copied";
+          setTimeout(function(){ label.textContent = "Share Card"; }, 2000);
+        }
+      } catch (err2) {}
+    }
   });
 })();
 </script>
 </body>
 </html>`;
 }
-

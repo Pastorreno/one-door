@@ -72,6 +72,8 @@ export default function OneDoorPanel() {
   const [bio, setBio] = useState("");
   const [photoDataUrl, setPhotoDataUrl] = useState("");
   const [photoName, setPhotoName] = useState("");
+  const [logoDataUrl, setLogoDataUrl] = useState("");
+  const [logoName, setLogoName] = useState("");
   const [phone, setPhone] = useState("");
   const [showPhone, setShowPhone] = useState(false);
   const [email, setEmail] = useState("");
@@ -105,6 +107,7 @@ export default function OneDoorPanel() {
       tagline: tagline.trim(),
       bio: bio.trim(),
       photoDataUrl: photoDataUrl || undefined,
+      logoDataUrl: logoDataUrl || undefined,
       phone: phone.trim(),
       email: email.trim(),
       showPhone,
@@ -132,6 +135,27 @@ export default function OneDoorPanel() {
       setError("");
     };
     reader.onerror = () => setError("That photo could not be read. Try another file.");
+    reader.readAsDataURL(file);
+  }
+
+  function onLogoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError("Logo must be a JPEG, PNG, or WebP image.");
+      return;
+    }
+    if (file.size > 2_000_000) {
+      setError("Logo is too large. Keep it under 2 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setLogoDataUrl(String(reader.result || ""));
+      setLogoName(file.name);
+      setError("");
+    };
+    reader.onerror = () => setError("That logo could not be read. Try another file.");
     reader.readAsDataURL(file);
   }
 
@@ -235,6 +259,7 @@ export default function OneDoorPanel() {
       <div className="od-section-heading"><div><span className="od-eyebrow">STEP 2</span><h2>Who is it for?</h2></div></div>
       <label>Name<input value={name} onChange={e => setName(e.target.value)} maxLength={80} required placeholder="Full name" /></label>
       <label>What they do — comma separated<input value={rolesText} onChange={e => setRolesText(e.target.value)} maxLength={200} required placeholder="Founder, Motivational Speaker, Life Coach" /></label>
+      <p className="od-form-note">The first two entries become the bold title — the job, then where (e.g. Chief Operating Officer, Stepping Stone Empowerment Center). The rest show underneath as roles.</p>
       <label>Signature line — optional<input value={tagline} onChange={e => setTagline(e.target.value)} maxLength={160} placeholder="There's purpose in your pain — embrace the process." /></label>
       <label>Short bio — optional<textarea value={bio} onChange={e => setBio(e.target.value)} maxLength={280} rows={3} placeholder="Two or three sentences about the person and their work." /></label>
       <label>Photo — optional
@@ -246,6 +271,15 @@ export default function OneDoorPanel() {
         <button type="button" onClick={() => { setPhotoDataUrl(""); setPhotoName(""); }}>Remove</button>
       </div>}
       {!photoDataUrl && <p className="od-form-note">No photo? The card shows initials instead, marked as a photo placeholder. Use the person&rsquo;s real photo whenever you have it.</p>}
+      <label>Logo — optional
+        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onLogoChange} />
+      </label>
+      {logoDataUrl && <div className="od-photo-row">
+        <img src={logoDataUrl} alt="Chosen card logo" />
+        <span>{logoName}</span>
+        <button type="button" onClick={() => { setLogoDataUrl(""); setLogoName(""); }}>Remove</button>
+      </div>}
+      {!logoDataUrl && <p className="od-form-note">A brand mark or monogram shows at the top of the card. Leave it off for a plain card.</p>}
 
       <div className="od-section-heading"><div><span className="od-eyebrow">STEP 3</span><h2>How can people reach them?</h2></div></div>
       <p className="od-form-note">Phone and email stay off the card unless you turn them on here. Nothing is published without you saying so.</p>

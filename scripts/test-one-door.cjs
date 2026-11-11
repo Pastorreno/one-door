@@ -61,7 +61,7 @@ assert.equal(v.profile.template, "business");
 assert.equal(lib.validateProfile({ ...validProfile, name: "" }).ok, false, "name required");
 assert.equal(lib.validateProfile({ ...validProfile, name: "x".repeat(81) }).ok, false, "name too long");
 assert.equal(lib.validateProfile({ ...validProfile, roles: [] }).ok, false, "roles required");
-assert.equal(lib.validateProfile({ ...validProfile, roles: ["a", "b", "c", "d", "e"] }).ok, false, "max 4 roles");
+assert.equal(lib.validateProfile({ ...validProfile, roles: ["a", "b", "c", "d", "e", "f"] }).ok, false, "max 5 roles");
 assert.equal(
   lib.validateProfile({ ...validProfile, links: [{ id: "x", label: "Bad", url: "not-a-url", kind: "website" }] }).ok,
   false,
@@ -86,6 +86,16 @@ assert.equal(
   lib.validateProfile({ ...validProfile, photoDataUrl: "data:image/gif;base64,AAAA" }).ok,
   false,
   "GIF photos are rejected",
+);
+assert.equal(
+  lib.validateProfile({ ...validProfile, logoDataUrl: "data:image/gif;base64,AAAA" }).ok,
+  false,
+  "GIF logos are rejected",
+);
+assert.equal(
+  lib.validateProfile({ ...validProfile, logoDataUrl: "data:image/png;base64,iVBORw0KGgo=" }).ok,
+  true,
+  "PNG logo passes",
 );
 assert.equal(
   lib.validateProfile({ ...validProfile, template: "nonsense" }).profile.template,
@@ -123,16 +133,47 @@ assert.match(html, /Role &amp; &lt;b&gt;bold&lt;\/b&gt;/);
 assert.doesNotMatch(html, /tel:/, "phone hidden when showPhone is false");
 assert.doesNotMatch(html, /mailto:/, "email hidden when showEmail is false");
 assert.match(html, /data:image\/png;base64,iVBORw0KGgo=/, "QR image embedded");
-assert.match(html, /Save to Contacts/);
-assert.match(html, /data-flip/, "flip control present");
+assert.match(html, /Save Contact/);
+assert.match(html, /data-qr-toggle/, "QR toggle present");
+assert.match(html, /data-share/, "share control present");
+assert.match(html, /Show QR Code/);
+assert.match(html, /Share Card/);
 assert.match(html, /https:\/\/example\.org\/music/, "music link present");
+assert.doesNotMatch(html, /data-flip/, "no flip control in the new design");
 
 const shown = lib.renderCardHtml(v.profile, {
   pageUrl: "https://example.org/cards/mareneo-12345678/",
   qrDataUrl: "data:image/png;base64,iVBORw0KGgo=",
 });
 assert.match(shown, /tel:9414798708/);
+assert.match(shown, /sms:9414798708/, "text action uses sms:");
 assert.match(shown, /mailto:admin@jgcommunity\.org/);
+assert.match(shown, /Call/);
+assert.match(shown, /Text/);
+assert.match(shown, /Email/);
+
+/* ---- title / roles split ---- */
+const titled = lib.validateProfile({
+  ...validProfile,
+  roles: ["Chief Operating Officer", "Stepping Stone Empowerment Center", "Speaker", "Mentor", "Community Leader"],
+}).profile;
+const titledHtml = lib.renderCardHtml(titled, {
+  pageUrl: "https://example.org/cards/x/",
+  qrDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+});
+assert.match(titledHtml, /Chief Operating Officer<br>Stepping Stone Empowerment Center/, "first two roles form the title block");
+assert.match(titledHtml, /Speaker &middot; Mentor &middot; Community Leader/, "remaining roles form the grey line");
+
+/* ---- logo ---- */
+const withLogo = lib.renderCardHtml(
+  lib.validateProfile({ ...validProfile, logoDataUrl: "data:image/png;base64,iVBORw0KGgo=" }).profile,
+  {
+    pageUrl: "https://example.org/cards/mareneo-12345678/",
+    qrDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+  },
+);
+assert.match(withLogo, /class="od-logo"/, "logo renders when provided");
+assert.doesNotMatch(shown, /class="od-logo"/, "no logo block without a logo");
 
 /* ---- slugs ---- */
 assert.equal(lib.slugifyName("Mareneo Flournoy"), "mareneo-flournoy");
