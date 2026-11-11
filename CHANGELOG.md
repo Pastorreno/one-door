@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.0 — 2026-11-10
+
+Card redesign (unreleased — pending review/merge): the black-and-gold flip
+card is replaced by the light card from Reno's design — white card on a
+soft grey page, red accent bar across the top, brand mark above a
+photo-and-name header, black Save Contact button, Call / Text / Email
+actions, contact lines, link rows, and a QR / Share footer. No flip; the
+QR hides behind "Show QR Code" and Share uses the system share sheet with
+a copy-link fallback.
+
+- `src/lib/one-door.ts`: `logoDataUrl` added to the profile (optional brand
+  mark, same JPEG/PNG/WebP ≤2 MB rules as the photo). Title rule: with
+  three or more roles, the first two are the bold title block (the job,
+  then where) and the rest show as a grey roles line.
+- Maker (`src/app/OneDoorPanel.tsx`): logo upload in Step 2, plus a note
+  explaining the title/roles split. Phone and email still stay off the
+  card unless their toggles are on.
+- Unit tests updated for the new controls (QR toggle, share, sms: link,
+  title split, logo).
+
 ## 0.1.0 — 2026-11-09
 
 One Door as a standalone GGI Hub product, on branch `one-door-launch`.

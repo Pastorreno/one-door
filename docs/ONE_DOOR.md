@@ -23,10 +23,12 @@ One app that builds a one-link page that works as:
 - a one-page presence for a preacher without a website (sermons, where they
   are preaching, giving, how to invite them).
 
-The sample card (black-and-gold flip card with Save to Contacts and a QR
-code) was the design reference. The house style is GGI's "Kingdom Tech"
-mode (deep charcoal, white, gold — see `docs/ggi-design-os.md`), which the
-black-and-gold card design already matches.
+The card design is the light card: white card on a soft grey page, red
+accent bar across the top, brand mark above a photo-and-name header, black
+Save Contact button, Call / Text / Email actions, contact lines, link rows,
+and a QR / Share footer. The house style is GGI's "Kingdom Tech" mode
+(see `docs/ggi-design-os.md`); the red accent comes from the card owner's
+own brand mark.
 
 ## How it works, end to end
 
@@ -51,7 +53,7 @@ black-and-gold card design already matches.
 ## Files
 
 - `src/lib/one-door.ts` — pure logic: profile type, validation, vCard
-  builder, card-page renderer (black-and-gold, flip front/back, inline
+  builder, card-page renderer (light card, red accent, inline
   Save-to-Contacts via an embedded vCard, QR image). No I/O, no secrets.
   All user text is HTML-escaped, and values embedded in the inline script
   are unicode-escaped so a name can never break out of the script block.
